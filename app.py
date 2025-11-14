@@ -3,6 +3,9 @@ import pandas as pd
 import pyreadstat
 from io import BytesIO
 import pyarrow
+import tempfile
+import os
+import re
 
 st.set_page_config(page_title="File Converter", layout="centered")
 
@@ -16,9 +19,30 @@ def read_xpt(file_bytes):
     return df
 
 def write_xpt(df):
-    buffer = BytesIO()
-    pyreadstat.write_xport(df, buffer)
-    return buffer.getvalue()
+    """Write a DataFrame to XPT format and return raw bytes.
+
+    pyreadstat.write_xport expects a filesystem path, not a file-like object,
+    so we write to a temporary file and then read the contents back.
+    """
+    # Create a temporary file path
+    with tempfile.NamedTemporaryFile(suffix=".xpt", delete=False) as tmp:
+        temp_path = tmp.name
+
+    # Write XPT to that path
+    pyreadstat.write_xport(df, temp_path)
+
+    # Read the bytes back into memory
+    try:
+        with open(temp_path, "rb") as f:
+            data = f.read()
+    finally:
+        # Always try to clean up the temp file
+        try:
+            os.remove(temp_path)
+        except OSError:
+            pass
+
+    return data
 
 def read_parquet(file_bytes):
     return pd.read_parquet(BytesIO(file_bytes))
@@ -71,12 +95,15 @@ if uploaded_file:
     )
 
     if st.button("Convert"):
+        if not target_format:
+            st.error("Please select an output format before converting.")
+            st.stop()
         try:
             df = readers[ext](file_bytes)
             output_bytes = writers[target_format](df)
 
             # create output filename
-            out_name = filename.replace(f".{ext}", f".{target_format}")
+            out_name = re.sub(r"(?i)\." + ext + "$", f".{target_format}", filename)
 
             st.success("Conversion complete!")
             st.download_button(
