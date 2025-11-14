@@ -48,8 +48,11 @@ def read_parquet(file_bytes):
     return pd.read_parquet(BytesIO(file_bytes))
 
 def write_parquet(df):
+    import pyarrow as pa
+    import pyarrow.parquet as pq
     buffer = BytesIO()
-    df.to_parquet(buffer, index=False)
+    table = pa.Table.from_pandas(df, preserve_index=False)
+    pq.write_table(table, buffer)
     return buffer.getvalue()
 
 def read_csv(file_bytes):
