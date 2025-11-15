@@ -19,6 +19,8 @@ def read_xpt(file_bytes):
     return df
 
 def write_xpt(df):
+    st.write("DEBUG: write_xpt called")
+    st.write("DEBUG: df head", df.head())
     """Write a DataFrame to XPT format and return raw bytes.
 
     pyreadstat.write_xport expects a filesystem path, not a file-like object,
@@ -48,6 +50,8 @@ def read_parquet(file_bytes):
     return pd.read_parquet(BytesIO(file_bytes))
 
 def write_parquet(df):
+    st.write("DEBUG: write_parquet called")
+    st.write("DEBUG: df head", df.head())
     import pyarrow as pa
     import pyarrow.parquet as pq
     buffer = BytesIO()
@@ -103,6 +107,9 @@ if uploaded_file:
             st.stop()
         try:
             df = readers[ext](file_bytes)
+            st.write("DEBUG: DataFrame loaded", {"rows": len(df), "cols": len(df.columns)})
+            st.write("DEBUG: dtypes", df.dtypes.astype(str))
+            st.write(f"DEBUG: Calling writer for {target_format}")
             output_bytes = writers[target_format](df)
 
             # create output filename
@@ -115,4 +122,6 @@ if uploaded_file:
                 file_name=out_name,
             )
         except Exception as e:
+            import traceback
             st.error(f"Conversion failed: {e}")
+            st.code(traceback.format_exc())
