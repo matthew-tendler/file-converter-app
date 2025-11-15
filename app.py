@@ -2,7 +2,6 @@ import streamlit as st
 import pandas as pd
 import pyreadstat
 from io import BytesIO
-import pyarrow
 import tempfile
 import os
 import re
@@ -12,15 +11,40 @@ st.set_page_config(page_title="File Converter", layout="centered")
 st.title("📁 XPT ↔ Parquet ↔ CSV Converter")
 st.write("Upload a file and convert it between XPT, Parquet, and CSV formats.")
 
-uploaded_file = st.file_uploader("Choose a file", type=["xpt", "parquet", "csv"])
-
 def read_xpt(file_bytes):
-    df, _ = pyreadstat.read_xport(BytesIO(file_bytes))
+    """Read XPT bytes into a DataFrame using a temporary file."""
+    st.write("DEBUG: read_xpt called")
+
+    # Create a temporary file for XPT input
+    with tempfile.NamedTemporaryFile(suffix=".xpt", delete=False) as tmp:
+        temp_path = tmp.name
+        tmp.write(file_bytes)
+    st.write(f"DEBUG: Temp XPT file written to {temp_path}")
+
+    try:
+        df, meta = pyreadstat.read_xport(temp_path)
+        st.write("DEBUG: XPT file successfully read")
+        st.write(f"DEBUG: Rows: {len(df)}, Cols: {len(df.columns)}")
+        st.write("DEBUG: XPT metadata", str(meta))
+    except Exception as e:
+        st.write("DEBUG: Error in read_xpt", str(e))
+        raise
+    finally:
+        try:
+            os.remove(temp_path)
+            st.write(f"DEBUG: Temp XPT file deleted: {temp_path}")
+        except OSError as err:
+            st.write(f"DEBUG: Failed to delete temp XPT file: {err}")
+
     return df
+
+uploaded_file = st.file_uploader("Choose a file", type=["xpt", "parquet", "csv"])
 
 def write_xpt(df):
     st.write("DEBUG: write_xpt called")
     st.write("DEBUG: df head", df.head())
+    st.write("DEBUG: dtypes before XPT write", df.dtypes.astype(str))
+    st.write("DEBUG: column names", list(df.columns))
     """Write a DataFrame to XPT format and return raw bytes.
 
     pyreadstat.write_xport expects a filesystem path, not a file-like object,
@@ -56,7 +80,7 @@ def write_parquet(df):
     import pyarrow.parquet as pq
     buffer = BytesIO()
     table = pa.Table.from_pandas(df, preserve_index=False)
-    pq.write_table(table, buffer)
+    pq.write_table(table, buffer, version="2.6")
     return buffer.getvalue()
 
 def read_csv(file_bytes):
